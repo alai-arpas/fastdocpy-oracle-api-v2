@@ -1,0 +1,49 @@
+[project]
+name = "fastdocpy-oracle-api-v2"
+version = "0.1.0"
+description = "Refactoring moderno di fastdocpy-oracle-api (dati idro-meteo ARPAS su Oracle)"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "fastapi[standard-no-fastapi-cloud-cli]>=0.115,<1",
+    "oracledb>=2.0,<3",
+    "pandas>=2.2,<3",
+    "pydantic-settings>=2,<3",
+    "pydantic>=2.8.2,<3",
+    "uvicorn[standard]>=0.35,<1",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "poethepoet>=0.37,<1",
+    "pytest-cov>=5,<7",
+    "pytest>=8,<9",
+    "ruff>=0.6,<1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.poe.tasks]
+dev = { cmd = "fastapi dev app/main.py", help = "Avvia l'API in sviluppo" }
+start = { cmd = "uvicorn app.main:app --host 127.0.0.1 --port 5008 --no-access-log", help = "Avvia l'API locale" }
+test = { cmd = "pytest", help = "Esegue i test" }
+lint = { cmd = "ruff check .", help = "Controlla il codice" }
+format = { cmd = "ruff format .", help = "Formatta il codice" }
+format-check = { cmd = "ruff format --check .", help = "Verifica la formattazione" }
+docker-build = { cmd = "docker compose build", help = "Costruisce l'immagine" }
+docker-up = { cmd = "docker compose -f compose.yaml -f compose.secrets.yaml up --build", help = "Avvia con i secret" }
+docker-down = { cmd = "docker compose down --remove-orphans", help = "Arresta i container" }
+
+[tool.poe.tasks.check]
+help = "Esegue tutti i controlli locali"
+sequence = ["lint", "format-check", "test"]

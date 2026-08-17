@@ -1,0 +1,12 @@
+name: fastdocpy-oracle-api-v2
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: fastdocpy-oracle-api-v2:local
+    init: true
+    ports:
+      - "127.0.0.1:5008:8000"
+    stop_grace_period: 10s
