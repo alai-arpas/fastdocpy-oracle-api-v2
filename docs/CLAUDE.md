@@ -4,7 +4,8 @@ Refactoring di **fastdocpy-oracle-api**: servizio dati idro-meteo ARPAS
 (stazioni SASI/SAR, misure CAE, validazioni idrometriche) letto da un
 database Oracle con schema poco relazionale ma alti volumi — tipico di serie
 temporali di misure di sensori piuttosto che di un dominio relazionale
-complesso. Storia completa delle decisioni in `docs/refactor-decisions.md`.
+complesso. Storia completa delle decisioni in `docs/refactor-decisions.md`;
+architettura (modello C4, statica e dinamica) in `docs/architettura-c4.md`.
 
 ## Stack
 
