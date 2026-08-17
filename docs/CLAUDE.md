@@ -44,6 +44,14 @@ context Docker, mai in chiaro nelle env var):
 .secrets/FDP_ADB__CREDENTIALS__PASSWORD
 ```
 
+Permessi: `chmod 644` (non `600`). `compose.secrets.yaml` monta questi file
+dell'host così come sono in `/run/secrets/`, preservando i permessi
+dell'host — ma il container gira come utente non privilegiato `fastdocpy`
+(UID/GID `10001`, vedi `Dockerfile`), diverso dall'utente host. Con `600`
+(leggibile solo dal proprietario host) il processo nel container va in
+`PermissionError` all'avvio, perché il suo UID non coincide con quello del
+file sull'host.
+
 Caricamento tipizzato in `app/settings.py` via `pydantic-settings`
 (`BaseSettings`, prefisso env `FDP_`, delimitatore annidato `__`,
 `NestedSecretsSettingsSource` per leggere i secret Docker montati in
