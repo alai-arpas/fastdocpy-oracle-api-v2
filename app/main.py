@@ -11,9 +11,11 @@ from typing import Annotated
 
 import oracledb
 from fastapi import Depends, FastAPI, Request
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from app.db import oracle_connection
+from app.home import render_home
 from app.models import MisuraCae, Stazione, Trascodifica
 from app.repositories import adb_sync as adb_sync_repo
 from app.repositories import misure_cae as misure_cae_repo
@@ -67,9 +69,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     )
     application.state.settings = runtime_settings
 
-    @application.get("/", tags=["system"])
-    def read_root() -> str:
-        return "fastdocpy-oracle-api-v2"
+    @application.get("/", response_class=HTMLResponse, tags=["system"])
+    def read_root() -> HTMLResponse:
+        """Pagina di benvenuto con i collegamenti alle API disponibili."""
+
+        return HTMLResponse(render_home(application))
 
     @application.get("/health", response_model=HealthResponse, tags=["system"])
     def health() -> HealthResponse:
@@ -79,16 +83,22 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @application.get("/sasi", response_model=list[Stazione], tags=["stazioni"])
     def sasi(connection: OracleConnection) -> list[Stazione]:
+        """Stazioni di tipo SASI (rete MTX)."""
+
         return stazioni_repo.fetch_stazioni_sasi(connection)
 
     @application.get("/sar", response_model=list[Stazione], tags=["stazioni"])
     def sar(connection: OracleConnection) -> list[Stazione]:
+        """Stazioni di tipo SAR."""
+
         return stazioni_repo.fetch_stazioni_sar(connection)
 
     @application.get(
         "/trascodifica", response_model=list[Trascodifica], tags=["trascodifiche"]
     )
     def trascodifica(connection: OracleConnection) -> list[Trascodifica]:
+        """Corrispondenza stazioni CAE <-> ARPAS."""
+
         return trascodifiche_repo.fetch_trascodifiche_cae(connection)
 
     @application.get(
