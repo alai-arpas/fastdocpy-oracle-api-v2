@@ -7,6 +7,9 @@ services:
       dockerfile: Dockerfile
     image: fastdocpy-oracle-api-v2:local
     init: true
+    env_file:
+      - path: .env
+        required: false
     ports:
       - "127.0.0.1:5007:8000"
     stop_grace_period: 10s

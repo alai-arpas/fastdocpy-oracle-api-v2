@@ -113,10 +113,20 @@ Caricamento tipizzato in `app/settings.py` via `pydantic-settings`
       paginazione o una risposta in streaming vera e propria (la sync ADB
       sopra risolve solo il percorso lettura-sorgente/scrittura-ADB, non
       un'eventuale lettura HTTP diretta di IDROMETRI_REPORT)
-- [ ] Verifica che `oracledb` thin mode si connetta correttamente ai DB
-      Oracle ARPAS/ADB reali (nessun Instant Client nel Dockerfile v2, e
-      nessuna gestione di Oracle Wallet per ADB: da confermare se serve
-      prima di considerarlo definitivo)
+- [x] Verifica connessione al DB Oracle ARPAS (sorgente) reale in thin
+      mode: confermato sia in locale sia nel container, `/sar` e `/sasi`
+      rispondono correttamente (nessun Instant Client necessario). Bug
+      trovato e corretto durante la verifica: `compose.yaml` non aveva
+      `env_file: .env` per il servizio `api` — le variabili `FDP_*` non
+      sensibili non arrivavano mai al container, che ricadeva sui default
+      di `OracleSettings` (`host="localhost"`) tentando di connettersi a
+      se stesso (`ConnectionRefusedError`, non un problema di rete/firewall
+      verso l'host Oracle reale)
+- [ ] Verifica connessione al DB ADB (destinazione sync) reale: ancora da
+      confermare. La DSN configurata usa `protocol=tcps` (Oracle Autonomous
+      Database) senza gestione di Oracle Wallet nel codice — da confermare
+      se la connessione mTLS-meno (system truststore) basta o se servirà
+      aggiungere `wallet_location`
 
 ## Convenzioni
 
