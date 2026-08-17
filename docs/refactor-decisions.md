@@ -248,7 +248,7 @@ per anno, sul modello di `oratabss/tabelle.py` nel legacy).
 
 ## 8. Catalogo reale dei COD_GRAND in MISURE_CAE_OLD
 
-L'utente ha estratto ed esportato in `docs/misure_cae_old.csv` una query di
+L'utente ha estratto ed esportato in `app/data/misure_cae_old.csv` una query di
 aggregazione `COD_STAZ, COD_GRAND, COUNT(*), MIN(DATA_MIS), MAX(DATA_MIS)`
 su `ARPAS.MISURE_CAE_OLD` (1054 combinazioni stazione×grandezza). Questo dà
 per la prima volta un quadro confermato di cosa contiene davvero la
@@ -277,3 +277,30 @@ Aggiornati di conseguenza i commenti in `app/main.py` (route
 `GET /html/misure_cae` (`app/views.py`), che ora citano l'elenco
 confermato invece di pochi esempi e rimandano al CSV per il dettaglio
 completo per stazione.
+
+Il CSV vive sotto `app/data/`, non `docs/`: `docs/` è escluso dal build
+context Docker (`.dockerignore`), quindi un file letto a runtime da lì
+avrebbe funzionato in locale ma non nel container — scoperto e corretto
+prima di costruirci sopra `app/catalogo_misure.py` (vedi sotto).
+
+### Catalogo caricato all'avvio, select filtrabili
+
+Su richiesta dell'utente, il CSV viene caricato **una volta all'avvio**
+(`app.catalogo_misure.get_catalogo`, `@lru_cache`, salvato in
+`application.state.catalogo`) invece che ad ogni richiesta — non e' la
+fonte di verita' (resta il database), e se il file manca il catalogo
+risulta vuoto senza bloccare l'avvio (dato accessorio per l'interfaccia).
+
+Aggiunte di conseguenza:
+
+- `GET /misure_cae/catalogo` (JSON) e `GET /html/misure_cae/catalogo`
+  (pagina HTML) — registrata **prima** di `/misure_cae/{cod_grand}`
+  nell'ordine delle route, altrimenti quest'ultima intercetterebbe
+  "catalogo" come se fosse un valore di `cod_grand`
+- il form di `GET /html/misure_cae` usa ora `<select>` per `cod_grand`/
+  `cod_staz` invece di campi di testo libero, popolate dal catalogo
+- un filtro "tipo Excel" (`app.html.render_filterable_table`) sulle
+  tabelle della pagina catalogo: casella di ricerca che nasconde dal vivo
+  le righe non corrispondenti, lato client, senza round-trip al server
+  (adatto alle ~1000 righe della tabella di dettaglio, non a result set
+  enormi non paginati)

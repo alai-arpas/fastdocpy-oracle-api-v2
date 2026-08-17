@@ -8,7 +8,8 @@ import json
 from datetime import datetime
 from html import escape
 
-from app.html import page_shell, render_table
+from app.catalogo_misure import CatalogoMisure, OpzioneSelezione
+from app.html import page_shell, render_filterable_table, render_table
 from app.models import MisuraCae, Trascodifica
 
 _CHART_JS_URL = "https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"
@@ -51,9 +52,10 @@ _MISURE_CAE_DOC = """
       <code>VAD</code>, <code>DVV</code>, <code>LIH</code>,
       <code>LIL</code> (questi ultimi con volumi/copertura stazioni molto
       minori — probabili varianti statistiche istantaneo/media/min/max,
-      non ancora confermato). Elenco completo con conteggio righe e
-      stazioni per codice in
-      <code>docs/misure_cae_old.csv</code>.</li>
+      non ancora confermato). Le select qui sotto sono popolate dallo
+      stesso catalogo esposto su
+      <a href="/html/misure_cae/catalogo">/html/misure_cae/catalogo</a>
+      (anche in JSON su <code>GET /misure_cae/catalogo</code>).</li>
     <li><code>inizio</code> / <code>fine</code>: intervallo di data/ora in
       formato ISO&nbsp;8601 (es. <code>2024-01-01T00:00</code>).</li>
     <li><code>cod_staz</code>: facoltativo. Se assente restituisce tutte le
@@ -74,25 +76,46 @@ _MISURE_CAE_DOC = """
 """
 
 
+def _select_options(opzioni: list[OpzioneSelezione], selezionato: str | None) -> str:
+    return "".join(
+        f'<option value="{escape(opz.codice)}"'
+        f"{' selected' if opz.codice == selezionato else ''}>"
+        f"{escape(opz.etichetta)}</option>"
+        for opz in opzioni
+    )
+
+
 def _misure_cae_form(
     cod_grand: str | None,
     inizio: datetime | None,
     fine: datetime | None,
     cod_staz: str | None,
+    grandezze: list[OpzioneSelezione],
+    stazioni: list[OpzioneSelezione],
 ) -> str:
     def fmt(value: datetime | None) -> str:
         return value.strftime("%Y-%m-%dT%H:%M") if value else ""
+
+    grandezza_vuota = not any(opz.codice == cod_grand for opz in grandezze)
+    grandezza_placeholder = (
+        f'<option value="" disabled {"selected" if grandezza_vuota else ""}>'
+        "seleziona una grandezza…</option>"
+    )
 
     return f"""
     <form method="get" action="/html/misure_cae">
       <div class="grid">
         <label>Grandezza (cod_grand)
-          <input type="text" name="cod_grand" maxlength="3" required
-                 placeholder="es. PCT" value="{escape(cod_grand or "")}">
+          <select name="cod_grand" required>
+            {grandezza_placeholder}
+            {_select_options(grandezze, cod_grand)}
+          </select>
         </label>
         <label>Stazione (cod_staz, facoltativo)
-          <input type="text" name="cod_staz" maxlength="9"
-                 placeholder="tutte le stazioni" value="{escape(cod_staz or "")}">
+          <select name="cod_staz">
+            <option value="">tutte le stazioni</option>
+            {_select_options(stazioni, cod_staz)}
+          </select>
         </label>
         <label>Inizio
           <input type="datetime-local" name="inizio" required
@@ -105,6 +128,8 @@ def _misure_cae_form(
       </div>
       <button type="submit">Cerca</button>
     </form>
+    <p><a href="/html/misure_cae/catalogo">Vedi il catalogo completo di
+    stazioni e grandezze &rarr;</a></p>
     """
 
 
@@ -180,13 +205,22 @@ def render_misure_cae_page(
     inizio: datetime | None,
     fine: datetime | None,
     cod_staz: str | None = None,
+    grandezze: list[OpzioneSelezione] | None = None,
+    stazioni: list[OpzioneSelezione] | None = None,
 ) -> str:
     """Documentazione + form di ricerca; interroga solo se cod_grand/inizio/
     fine sono presenti (`rows` e' `None` quando la pagina e' vista senza
-    query). `cod_staz` resta facoltativo anche in ricerca.
+    query). `cod_staz` resta facoltativo anche in ricerca. `grandezze`/
+    `stazioni` popolano le select del form (dal catalogo caricato
+    all'avvio); vuote se il catalogo non e' disponibile.
     """
 
-    parts = [_MISURE_CAE_DOC, _misure_cae_form(cod_grand, inizio, fine, cod_staz)]
+    parts = [
+        _MISURE_CAE_DOC,
+        _misure_cae_form(
+            cod_grand, inizio, fine, cod_staz, grandezze or [], stazioni or []
+        ),
+    ]
 
     if rows is not None:
         if rows and cod_staz and cod_grand:
@@ -213,6 +247,70 @@ def render_misure_cae_page(
     return page_shell(
         "Misure CAE",
         "Ricerca e documentazione delle misure di validazione CAE.",
+        body,
+        show_home_link=True,
+    )
+
+
+def render_catalogo_page(catalogo: CatalogoMisure) -> str:
+    """Catalogo di stazioni/grandezze note, caricato da un CSV di
+    riferimento all'avvio del processo (`app.catalogo_misure`).
+    """
+
+    intro = f"""
+    <section>
+      <h2>Cosa contiene</h2>
+      <p>Catalogo di stazioni e grandezze note in <code>MISURE_CAE_OLD</code>,
+      caricato all'avvio da un export CSV di riferimento
+      (<code>app/data/misure_cae_old.csv</code>) — non e' letto dal
+      database in tempo reale, quindi puo' non riflettere dati aggiunti
+      dopo l'estrazione. {len(catalogo.stazioni)} stazioni,
+      {len(catalogo.grandezze)} grandezze. Dettagli in
+      <code>docs/refactor-decisions.md</code>, sezione 8.</p>
+    </section>
+    """
+
+    grandezze_table = render_filterable_table(
+        "tabella-grandezze",
+        ["Grandezza", "Righe totali"],
+        [(opz.codice, opz.etichetta) for opz in catalogo.grandezze],
+        placeholder="Filtra per grandezza…",
+    )
+    stazioni_table = render_filterable_table(
+        "tabella-stazioni",
+        ["Stazione", "Righe totali"],
+        [(opz.codice, opz.etichetta) for opz in catalogo.stazioni],
+        placeholder="Filtra per stazione…",
+    )
+    dettaglio_table = render_filterable_table(
+        "tabella-dettaglio",
+        ["Stazione", "Grandezza", "Righe", "Da", "A"],
+        [
+            (voce.cod_staz, voce.cod_grand, voce.righe, voce.data_min, voce.data_max)
+            for voce in sorted(catalogo.voci, key=lambda v: (v.cod_staz, v.cod_grand))
+        ],
+        placeholder="Filtra per stazione o grandezza…",
+    )
+
+    body = f"""
+    {intro}
+    <section>
+      <h2>Grandezze ({len(catalogo.grandezze)})</h2>
+      {grandezze_table}
+    </section>
+    <section>
+      <h2>Stazioni ({len(catalogo.stazioni)})</h2>
+      {stazioni_table}
+    </section>
+    <section>
+      <h2>Dettaglio completo (stazione &times; grandezza)</h2>
+      {dettaglio_table}
+    </section>
+    """
+
+    return page_shell(
+        "Catalogo misure CAE",
+        "Stazioni e grandezze note per MISURE_CAE_OLD, con volume e copertura.",
         body,
         show_home_link=True,
     )

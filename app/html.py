@@ -40,9 +40,20 @@ def page_shell(
 """
 
 
-def render_table(headers: Sequence[str], rows: Iterable[Sequence[object]]) -> str:
-    """Tabella HTML da intestazioni ed elenco di righe (celle convertite a testo)."""
+def render_table(
+    headers: Sequence[str],
+    rows: Iterable[Sequence[object]],
+    *,
+    table_id: str | None = None,
+) -> str:
+    """Tabella HTML da intestazioni ed elenco di righe (celle convertite a testo).
 
+    `table_id` e' un identificativo scelto dallo sviluppatore (non da input
+    utente): serve ad agganciarci un filtro via `render_filterable_table`,
+    non richiede quindi escaping per contenuto esterno.
+    """
+
+    id_attr = f' id="{table_id}"' if table_id else ""
     head_cells = "".join(f"<th>{escape(header)}</th>" for header in headers)
     body_rows = "\n".join(
         "<tr>" + "".join(f"<td>{escape(str(cell))}</td>" for cell in row) + "</tr>"
@@ -50,10 +61,48 @@ def render_table(headers: Sequence[str], rows: Iterable[Sequence[object]]) -> st
     )
 
     return f"""
-    <table>
+    <table{id_attr}>
       <thead><tr>{head_cells}</tr></thead>
       <tbody>
         {body_rows}
       </tbody>
     </table>
+    """
+
+
+def render_filterable_table(
+    table_id: str,
+    headers: Sequence[str],
+    rows: Iterable[Sequence[object]],
+    *,
+    placeholder: str = "Filtra…",
+) -> str:
+    """Tabella con una casella di ricerca (tipo il filtro di Excel): nasconde
+    dal vivo, lato client, le righe che non contengono il testo digitato in
+    nessuna colonna (confronto case-insensitive). Adatta a tabelle fino a
+    qualche migliaio di righe gia' presenti nella pagina — non e' una
+    ricerca lato server, non aiuta con result set enormi non paginati.
+    """
+
+    filtro_id = f"filtro-{table_id}"
+    table_html = render_table(headers, rows, table_id=table_id)
+
+    return f"""
+    <input type="search" id="{filtro_id}" placeholder="{escape(placeholder)}"
+           aria-controls="{table_id}">
+    {table_html}
+    <script>
+      (function () {{
+        const input = document.getElementById("{filtro_id}");
+        const corpo = document.getElementById("{table_id}").tBodies[0];
+        input.addEventListener("input", function () {{
+          const termine = input.value.trim().toLowerCase();
+          for (const riga of corpo.rows) {{
+            riga.style.display = riga.textContent.toLowerCase().includes(termine)
+              ? ""
+              : "none";
+          }}
+        }});
+      }})();
+    </script>
     """

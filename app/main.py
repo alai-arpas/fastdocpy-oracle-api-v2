@@ -14,6 +14,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
+from app.catalogo_misure import CatalogoMisure, CatalogoResponse, get_catalogo
 from app.db import oracle_connection
 from app.home import render_home
 from app.models import MisuraCae, Stazione, Trascodifica
@@ -22,7 +23,11 @@ from app.repositories import misure_cae as misure_cae_repo
 from app.repositories import stazioni as stazioni_repo
 from app.repositories import trascodifiche as trascodifiche_repo
 from app.settings import AppSettings, get_settings
-from app.views import render_misure_cae_page, render_trascodifica_page
+from app.views import (
+    render_catalogo_page,
+    render_misure_cae_page,
+    render_trascodifica_page,
+)
 
 
 class HealthResponse(BaseModel):
@@ -69,6 +74,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         version="0.1.0",
     )
     application.state.settings = runtime_settings
+    application.state.catalogo = get_catalogo()
 
     @application.get("/", response_class=HTMLResponse, tags=["system"])
     def read_root() -> HTMLResponse:
@@ -109,6 +115,23 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         rows = trascodifiche_repo.fetch_trascodifiche_cae(connection)
         return HTMLResponse(render_trascodifica_page(rows))
 
+    # Registrata PRIMA di /misure_cae/{cod_grand}: altrimenti quest'ultima
+    # intercetterebbe "catalogo" come se fosse un valore di cod_grand (le
+    # route statiche vanno registrate prima di quelle con path param sullo
+    # stesso prefisso).
+    @application.get(
+        "/misure_cae/catalogo", response_model=CatalogoResponse, tags=["misure"]
+    )
+    def misure_cae_catalogo(request: Request) -> CatalogoResponse:
+        """Stazioni e grandezze note (da un export CSV di riferimento
+        caricato all'avvio, non da una query dal vivo sul database).
+        """
+
+        catalogo: CatalogoMisure = request.app.state.catalogo
+        return CatalogoResponse(
+            stazioni=catalogo.stazioni, grandezze=catalogo.grandezze
+        )
+
     @application.get(
         "/misure_cae/{cod_grand}", response_model=list[MisuraCae], tags=["misure"]
     )
@@ -123,11 +146,12 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
         `cod_grand`: PCT = pioggia, TCI = temperatura, LIT/LJT = livello
         primo/secondo idrometro (27 codici confermati sui dati reali, vedi
-        `docs/misure_cae_old.csv` per l'elenco completo con conteggio righe
-        e stazioni per codice — il legacy citava "P1H" per la pioggia, ma
-        non compare tra i codici realmente presenti: era sbagliato o
-        relativo a un'altra tabella). `inizio`/`fine` sono datetime ISO
-        8601 (es. `2022-11-15T03:00:00`); a differenza del legacy non
+        `GET /misure_cae/catalogo` o `app/data/misure_cae_old.csv` per
+        l'elenco completo con conteggio righe e stazioni per codice — il
+        legacy citava "P1H" per la pioggia, ma non compare tra i codici
+        realmente presenti: era sbagliato o relativo a un'altra tabella).
+        `inizio`/`fine` sono datetime ISO 8601
+        (es. `2022-11-15T03:00:00`); a differenza del legacy non
         serve piu' il formato `dd-mm-yyyy hh24:mi`, la conversione la fa
         FastAPI. `cod_staz` e' opzionale: se assente restituisce tutte le
         stazioni.
@@ -175,6 +199,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                     cod_staz=cod_staz,
                 )
 
+        catalogo: CatalogoMisure = request.app.state.catalogo
         return HTMLResponse(
             render_misure_cae_page(
                 rows,
@@ -182,8 +207,19 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 inizio=inizio,
                 fine=fine,
                 cod_staz=cod_staz,
+                grandezze=catalogo.grandezze,
+                stazioni=catalogo.stazioni,
             )
         )
+
+    @application.get(
+        "/html/misure_cae/catalogo", response_class=HTMLResponse, tags=["html"]
+    )
+    def misure_cae_catalogo_html(request: Request) -> HTMLResponse:
+        """Vista HTML del catalogo stazioni/grandezze note per MISURE_CAE_OLD."""
+
+        catalogo: CatalogoMisure = request.app.state.catalogo
+        return HTMLResponse(render_catalogo_page(catalogo))
 
     @application.get("/adb/misure_cae", tags=["adb"])
     def adb_misure_cae_sample(

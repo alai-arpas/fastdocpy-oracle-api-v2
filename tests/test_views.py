@@ -1,11 +1,16 @@
-from datetime import datetime
+from datetime import date, datetime
 
+from app.catalogo_misure import CatalogoMisure, OpzioneSelezione, VoceCatalogo
 from app.models import MisuraCae, Trascodifica
 from app.views import (
     _safe_json_for_script,
+    render_catalogo_page,
     render_misure_cae_page,
     render_trascodifica_page,
 )
+
+_GRANDEZZE = [OpzioneSelezione(codice="PCT", etichetta="PCT (258 righe)")]
+_STAZIONI = [OpzioneSelezione(codice="CA011B539", etichetta="CA011B539 (10 righe)")]
 
 
 def test_render_trascodifica_page_lists_rows_and_links_home() -> None:
@@ -37,10 +42,11 @@ def test_render_misure_cae_page_with_empty_results_shows_message() -> None:
         cod_grand="PCT",
         inizio=datetime(2024, 1, 1),
         fine=datetime(2024, 1, 2),
+        grandezze=_GRANDEZZE,
     )
 
     assert "Nessun risultato" in html
-    assert 'value="PCT"' in html
+    assert '<option value="PCT" selected>' in html
     assert 'value="2024-01-01T00:00"' in html
 
 
@@ -51,10 +57,20 @@ def test_render_misure_cae_page_preserves_cod_staz_in_form() -> None:
         inizio=None,
         fine=None,
         cod_staz="CA011B539",
+        grandezze=_GRANDEZZE,
+        stazioni=_STAZIONI,
     )
 
     assert 'name="cod_staz"' in html
-    assert 'value="CA011B539"' in html
+    assert '<option value="CA011B539" selected>' in html
+
+
+def test_render_misure_cae_page_without_catalogo_has_empty_selects() -> None:
+    html = render_misure_cae_page(None, cod_grand=None, inizio=None, fine=None)
+
+    assert '<select name="cod_grand" required>' in html
+    assert '<select name="cod_staz">' in html
+    assert '<option value="" disabled selected>' in html
 
 
 def test_render_misure_cae_page_with_rows_renders_table() -> None:
@@ -80,8 +96,13 @@ def test_render_misure_cae_page_with_rows_renders_table() -> None:
     assert "<td>1.5</td>" in html
 
 
-def test_render_misure_cae_page_escapes_cod_grand() -> None:
-    html = render_misure_cae_page(None, cod_grand='"><script>', inizio=None, fine=None)
+def test_render_misure_cae_page_escapes_grandezza_options() -> None:
+    malicious = '"><script>alert(1)</script>'
+    grandezze = [OpzioneSelezione(codice=malicious, etichetta=malicious)]
+
+    html = render_misure_cae_page(
+        None, cod_grand=malicious, inizio=None, fine=None, grandezze=grandezze
+    )
 
     assert "<script>" not in html
     assert "&lt;script&gt;" in html
@@ -138,3 +159,32 @@ def test_safe_json_for_script_escapes_script_breakout() -> None:
 
     assert "</script>" not in result
     assert "\\u003c/script\\u003e" in result
+
+
+def test_render_catalogo_page_lists_grandezze_stazioni_and_dettaglio() -> None:
+    catalogo = CatalogoMisure(
+        voci=[
+            VoceCatalogo(
+                cod_staz="CA011B539",
+                cod_grand="PCT",
+                righe=1993201,
+                data_min=date(2022, 1, 1),
+                data_max=date(2025, 11, 15),
+            )
+        ]
+    )
+
+    html = render_catalogo_page(catalogo)
+
+    assert "Grandezze (1)" in html
+    assert "Stazioni (1)" in html
+    assert "<td>CA011B539</td>" in html
+    assert "<td>PCT</td>" in html
+    assert "<td>1993201</td>" in html
+
+
+def test_render_catalogo_page_handles_empty_catalogo() -> None:
+    html = render_catalogo_page(CatalogoMisure(voci=[]))
+
+    assert "Grandezze (0)" in html
+    assert "Stazioni (0)" in html

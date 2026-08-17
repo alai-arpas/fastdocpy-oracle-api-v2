@@ -1,4 +1,4 @@
-from app.html import page_shell, render_table
+from app.html import page_shell, render_filterable_table, render_table
 
 
 def test_page_shell_includes_title_description_and_pico_css() -> None:
@@ -24,3 +24,24 @@ def test_render_table_escapes_cell_content() -> None:
     assert "<script>" not in html
     assert "&lt;script&gt;" in html
     assert "<td>safe</td>" in html
+
+
+def test_render_table_sets_id_when_given() -> None:
+    without_id = render_table(["A"], [("1",)])
+    with_id = render_table(["A"], [("1",)], table_id="una-tabella")
+
+    assert "<table>" in without_id
+    assert '<table id="una-tabella">' in with_id
+
+
+def test_render_filterable_table_includes_search_input_and_table() -> None:
+    html = render_filterable_table(
+        "tabella-prova", ["Codice"], [("PCT",), ("TCI",)], placeholder="Cerca…"
+    )
+
+    assert '<table id="tabella-prova">' in html
+    assert 'id="filtro-tabella-prova"' in html
+    assert 'placeholder="Cerca…"' in html
+    assert "<td>PCT</td>" in html
+    assert "<td>TCI</td>" in html
+    assert 'document.getElementById("tabella-prova")' in html

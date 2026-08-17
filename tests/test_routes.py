@@ -1,11 +1,24 @@
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi.testclient import TestClient
 
 import app.main as main_module
+from app.catalogo_misure import CatalogoMisure, VoceCatalogo
 from app.main import create_app, get_adb_connection, get_connection
 from tests.oracle_fakes import FakeConnection
+
+_CATALOGO_DI_TEST = CatalogoMisure(
+    voci=[
+        VoceCatalogo(
+            cod_staz="CA011B539",
+            cod_grand="PCT",
+            righe=1993201,
+            data_min=date(2022, 1, 1),
+            data_max=date(2025, 11, 15),
+        )
+    ]
+)
 
 
 def _client_with_fake_connection(rows: list[tuple]) -> TestClient:
@@ -133,6 +146,50 @@ def test_misure_cae_html_route_with_params_queries_and_renders_table(
         "inizio": datetime(2024, 1, 1),
         "fine": datetime(2024, 1, 2),
     }
+
+
+def test_misure_cae_catalogo_route_returns_stazioni_e_grandezze() -> None:
+    app = create_app()
+    app.state.catalogo = _CATALOGO_DI_TEST
+    client = TestClient(app)
+
+    response = client.get("/misure_cae/catalogo")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "stazioni": [
+            {"codice": "CA011B539", "etichetta": "CA011B539 (1.993.201 righe)"}
+        ],
+        "grandezze": [{"codice": "PCT", "etichetta": "PCT (1.993.201 righe)"}],
+    }
+
+
+def test_misure_cae_catalogo_route_non_intercettata_da_cod_grand() -> None:
+    """/misure_cae/catalogo deve restare distinta da /misure_cae/{cod_grand}:
+    verifica che il routing non tratti "catalogo" come un valore di
+    cod_grand (che darebbe 422, mancando inizio/fine)."""
+
+    app = create_app()
+    app.state.catalogo = _CATALOGO_DI_TEST
+    client = TestClient(app)
+
+    response = client.get("/misure_cae/catalogo")
+
+    assert response.status_code == 200
+    assert "stazioni" in response.json()
+
+
+def test_misure_cae_catalogo_html_route_lists_stazioni_e_grandezze() -> None:
+    app = create_app()
+    app.state.catalogo = _CATALOGO_DI_TEST
+    client = TestClient(app)
+
+    response = client.get("/html/misure_cae/catalogo")
+
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "<td>CA011B539</td>" in response.text
+    assert "<td>PCT</td>" in response.text
 
 
 def test_adb_misure_cae_sample_route_returns_rows_from_adb() -> None:
