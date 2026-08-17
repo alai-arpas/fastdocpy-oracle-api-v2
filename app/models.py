@@ -4,7 +4,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Stazione(BaseModel):
@@ -27,12 +27,16 @@ class Trascodifica(BaseModel):
 
 
 class MisuraCae(BaseModel):
-    """Misura da tabella MISURE_CAE, troncata all'ora come nel legacy."""
+    """Misura da tabella MISURE_CAE, troncata all'ora come nel legacy.
+
+    Vincoli di lunghezza allineati al DDL: COD_STAZ VARCHAR2(9), COD_GRAND
+    VARCHAR2(3), COD_VALID VARCHAR2(1).
+    """
 
     model_config = ConfigDict(frozen=True)
 
-    cod_staz: str
-    cod_grand: str
+    cod_staz: str = Field(max_length=9)
+    cod_grand: str = Field(max_length=3)
     valore: float | None
-    cod_valid: str | None
+    cod_valid: str | None = Field(default=None, max_length=1)
     data: datetime
