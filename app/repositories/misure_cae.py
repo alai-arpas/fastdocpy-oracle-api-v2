@@ -28,6 +28,7 @@ _SQL_MISURE_CAE = """
     WHERE cod_grand = :cod_grand
       AND data_mis >= :inizio
       AND data_mis <= :fine
+      {filtro_stazione}
     ORDER BY cod_staz, TRUNC(data_mis, 'HH24'), cod_grand
 """
 
@@ -38,16 +39,33 @@ def fetch_misure_cae(
     cod_grand: str,
     inizio: datetime,
     fine: datetime,
+    cod_staz: str | None = None,
 ) -> list[MisuraCae]:
+    """`cod_staz` e' opzionale: se assente non filtra per stazione.
+
+    Il legacy aveva questa idea abbozzata (`filtra_stazione` in
+    `query_idro_valida.py`) ma commentata, e con interpolazione diretta
+    del valore nel testo SQL invece di un bind variable. Qui la struttura
+    della query varia (clausola presente o assente), ma il valore di
+    `cod_staz` e' sempre legato come bind, mai interpolato.
+    """
+
+    binds: dict[str, object] = {"cod_grand": cod_grand, "inizio": inizio, "fine": fine}
+    filtro_stazione = ""
+    if cod_staz:
+        filtro_stazione = "AND cod_staz = :cod_staz"
+        binds["cod_staz"] = cod_staz
+
+    sql = _SQL_MISURE_CAE.format(filtro_stazione=filtro_stazione)
     cursor = new_cursor(connection)
-    cursor.execute(_SQL_MISURE_CAE, cod_grand=cod_grand, inizio=inizio, fine=fine)
+    cursor.execute(sql, **binds)
     return [
         MisuraCae(
-            cod_staz=cod_staz,
+            cod_staz=cod_staz_val,
             cod_grand=cod_grand_val,
             valore=valore,
             cod_valid=cod_valid,
             data=data,
         )
-        for cod_staz, cod_grand_val, valore, cod_valid, data in cursor
+        for cod_staz_val, cod_grand_val, valore, cod_valid, data in cursor
     ]

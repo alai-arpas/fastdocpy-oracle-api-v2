@@ -40,6 +40,19 @@ def test_render_misure_cae_page_with_empty_results_shows_message() -> None:
     assert 'value="2024-01-01T00:00"' in html
 
 
+def test_render_misure_cae_page_preserves_cod_staz_in_form() -> None:
+    html = render_misure_cae_page(
+        None,
+        cod_grand="PCT",
+        inizio=None,
+        fine=None,
+        cod_staz="CA011B539",
+    )
+
+    assert 'name="cod_staz"' in html
+    assert 'value="CA011B539"' in html
+
+
 def test_render_misure_cae_page_with_rows_renders_table() -> None:
     rows = [
         MisuraCae(

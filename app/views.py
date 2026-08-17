@@ -40,6 +40,8 @@ _MISURE_CAE_DOC = """
       documentato in modo affidabile.</li>
     <li><code>inizio</code> / <code>fine</code>: intervallo di data/ora in
       formato ISO&nbsp;8601 (es. <code>2024-01-01T00:00</code>).</li>
+    <li><code>cod_staz</code>: facoltativo. Se assente restituisce tutte le
+      stazioni; se presente filtra su una sola (max 9 caratteri).</li>
   </ul>
 
   <article>
@@ -55,7 +57,10 @@ _MISURE_CAE_DOC = """
 
 
 def _misure_cae_form(
-    cod_grand: str | None, inizio: datetime | None, fine: datetime | None
+    cod_grand: str | None,
+    inizio: datetime | None,
+    fine: datetime | None,
+    cod_staz: str | None,
 ) -> str:
     def fmt(value: datetime | None) -> str:
         return value.strftime("%Y-%m-%dT%H:%M") if value else ""
@@ -66,6 +71,10 @@ def _misure_cae_form(
         <label>Grandezza (cod_grand)
           <input type="text" name="cod_grand" maxlength="3" required
                  placeholder="es. PCT" value="{escape(cod_grand or "")}">
+        </label>
+        <label>Stazione (cod_staz, facoltativo)
+          <input type="text" name="cod_staz" maxlength="9"
+                 placeholder="tutte le stazioni" value="{escape(cod_staz or "")}">
         </label>
         <label>Inizio
           <input type="datetime-local" name="inizio" required
@@ -87,12 +96,14 @@ def render_misure_cae_page(
     cod_grand: str | None,
     inizio: datetime | None,
     fine: datetime | None,
+    cod_staz: str | None = None,
 ) -> str:
-    """Documentazione + form di ricerca; interroga solo se i tre parametri
-    sono presenti (`rows` e' `None` quando la pagina e' vista senza query).
+    """Documentazione + form di ricerca; interroga solo se cod_grand/inizio/
+    fine sono presenti (`rows` e' `None` quando la pagina e' vista senza
+    query). `cod_staz` resta facoltativo anche in ricerca.
     """
 
-    parts = [_MISURE_CAE_DOC, _misure_cae_form(cod_grand, inizio, fine)]
+    parts = [_MISURE_CAE_DOC, _misure_cae_form(cod_grand, inizio, fine, cod_staz)]
 
     if rows is not None:
         if rows:

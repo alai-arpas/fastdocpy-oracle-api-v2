@@ -117,6 +117,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         inizio: datetime,
         fine: datetime,
         connection: OracleConnection,
+        cod_staz: str | None = None,
     ) -> list[MisuraCae]:
         """Misure di validazione CAE per grandezza e intervallo di date.
 
@@ -124,13 +125,18 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         primo/secondo idrometro. `inizio`/`fine` sono datetime ISO 8601
         (es. `2022-11-15T03:00:00`); a differenza del legacy non serve piu'
         il formato `dd-mm-yyyy hh24:mi`, la conversione la fa FastAPI.
+        `cod_staz` e' opzionale: se assente restituisce tutte le stazioni.
 
         Legge da MISURE_CAE_OLD (non MISURE_CAE): scope temporaneo, vedi
         `docs/refactor-decisions.md` sezione 7.
         """
 
         return misure_cae_repo.fetch_misure_cae(
-            connection, cod_grand=cod_grand, inizio=inizio, fine=fine
+            connection,
+            cod_grand=cod_grand,
+            inizio=inizio,
+            fine=fine,
+            cod_staz=cod_staz,
         )
 
     @application.get("/html/misure_cae", response_class=HTMLResponse, tags=["html"])
@@ -139,13 +145,15 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         cod_grand: str | None = None,
         inizio: datetime | None = None,
         fine: datetime | None = None,
+        cod_staz: str | None = None,
     ) -> HTMLResponse:
         """Documentazione e form di ricerca per le misure di validazione CAE.
 
-        A differenza delle altre route HTML, i parametri sono opzionali: la
-        connessione Oracle si apre solo se sono presenti tutti e tre (niente
-        Depends qui, cosi' la sola documentazione resta consultabile anche
-        se Oracle non e' raggiungibile).
+        A differenza delle altre route HTML, `cod_grand`/`inizio`/`fine` sono
+        opzionali (obbligatori solo per lanciare la ricerca): la connessione
+        Oracle si apre solo se sono presenti tutti e tre (niente Depends
+        qui, cosi' la sola documentazione resta consultabile anche se Oracle
+        non e' raggiungibile). `cod_staz` resta facoltativo anche in ricerca.
         """
 
         rows = None
@@ -155,11 +163,21 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 dsn=settings.oracle.dsn, credentials=settings.oracle.credentials
             ) as connection:
                 rows = misure_cae_repo.fetch_misure_cae(
-                    connection, cod_grand=cod_grand, inizio=inizio, fine=fine
+                    connection,
+                    cod_grand=cod_grand,
+                    inizio=inizio,
+                    fine=fine,
+                    cod_staz=cod_staz,
                 )
 
         return HTMLResponse(
-            render_misure_cae_page(rows, cod_grand=cod_grand, inizio=inizio, fine=fine)
+            render_misure_cae_page(
+                rows,
+                cod_grand=cod_grand,
+                inizio=inizio,
+                fine=fine,
+                cod_staz=cod_staz,
+            )
         )
 
     @application.get("/adb/misure_cae", tags=["adb"])

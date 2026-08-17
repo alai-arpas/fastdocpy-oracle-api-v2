@@ -30,3 +30,23 @@ def test_fetch_misure_cae_binds_params_and_maps_rows() -> None:
         "fine": fine,
     }
     assert "misure_cae_old" in connection.fake_cursor.last_sql.lower()
+    assert "cod_staz =" not in connection.fake_cursor.last_sql.lower()
+
+
+def test_fetch_misure_cae_with_cod_staz_adds_bind_and_filter() -> None:
+    riga = ("101", "P1H", 12.3, "1", datetime(2022, 11, 15, 3, 0))
+    connection = FakeConnection([riga])
+    inizio = datetime(2022, 11, 1)
+    fine = datetime(2022, 11, 30)
+
+    misure_cae_repo.fetch_misure_cae(
+        connection, cod_grand="P1H", inizio=inizio, fine=fine, cod_staz="101"
+    )
+
+    assert connection.fake_cursor.last_binds == {
+        "cod_grand": "P1H",
+        "inizio": inizio,
+        "fine": fine,
+        "cod_staz": "101",
+    }
+    assert "cod_staz = :cod_staz" in connection.fake_cursor.last_sql.lower()
