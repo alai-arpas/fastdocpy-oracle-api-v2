@@ -245,3 +245,35 @@ destinazione su ADB resta `wksp_dbpoa.misure_cae`, cambia solo la sorgente.
 Questo è uno scope provvisorio: quando i punti sopra saranno chiariti, la
 logica di selezione tabella andrà rivista (verosimilmente una selezione
 per anno, sul modello di `oratabss/tabelle.py` nel legacy).
+
+## 8. Catalogo reale dei COD_GRAND in MISURE_CAE_OLD
+
+L'utente ha estratto ed esportato in `docs/misure_cae_old.csv` una query di
+aggregazione `COD_STAZ, COD_GRAND, COUNT(*), MIN(DATA_MIS), MAX(DATA_MIS)`
+su `ARPAS.MISURE_CAE_OLD` (1054 combinazioni stazione×grandezza). Questo dà
+per la prima volta un quadro confermato di cosa contiene davvero la
+tabella, invece di ipotesi basate su pochi campioni:
+
+- **163 COD_STAZ distinti** (non ~200 come stimato inizialmente)
+- **27 COD_GRAND distinti** (non ~15 come stimato inizialmente — quasi il
+  doppio)
+- `PCT` domina nettamente il volume (oltre 258 milioni di righe su 132
+  stazioni) — è quasi certamente il codice pioggia, e spiega perché una
+  query di un solo giorno senza filtro stazione può restituire centinaia
+  di migliaia di righe (visto in pratica: 185.889 righe per un giorno di
+  `PCT` su tutte le stazioni)
+- il commento del legacy (`P1H = pioggia`) è **sbagliato o relativo a
+  un'altra tabella**: `P1H` non compare tra i 27 codici realmente presenti
+  in `MISURE_CAE_OLD`. `TCI`, `LIT`, `LJT` invece combaciano con la
+  spiegazione legacy (temperatura, livello primo/secondo idrometro)
+- molti codici minori sembrano varianti statistiche di una stessa
+  grandezza base (es. `TCI`/`TCM`/`TCL`/`TCH`, `UCI`/`UCH`/`UCL`) — non
+  confermato, servirebbe la tabella `GRANDEZZE` (vista ma non ancora
+  esplorata, sezione 6 della checklist in `docs/CLAUDE.md`) per le
+  descrizioni ufficiali
+
+Aggiornati di conseguenza i commenti in `app/main.py` (route
+`GET /misure_cae/{cod_grand}`) e la documentazione inline di
+`GET /html/misure_cae` (`app/views.py`), che ora citano l'elenco
+confermato invece di pochi esempi e rimandano al CSV per il dettaglio
+completo per stazione.

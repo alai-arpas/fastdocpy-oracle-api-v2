@@ -37,10 +37,23 @@ _MISURE_CAE_DOC = """
   <h3>Parametri</h3>
   <ul>
     <li><code>cod_grand</code>: codice della grandezza misurata (max 3
-      caratteri). Esempi osservati nei dati reali: <code>PCT</code>,
-      <code>VAM</code>, <code>VAV</code>, <code>DVA</code>,
-      <code>DVM</code>. L'elenco completo dei codici non e' ancora
-      documentato in modo affidabile.</li>
+      caratteri). 27 codici confermati nei dati reali (2022-2025):
+      <code>PCT</code> (pioggia, di gran lunga il piu' numeroso — oltre
+      258 milioni di righe su 132 stazioni), <code>TCI</code>
+      (temperatura), <code>LIT</code>/<code>LJT</code> (livello primo/
+      secondo idrometro), <code>DVM</code>/<code>DVA</code> (direzione
+      vento), <code>VAM</code>/<code>VAV</code> (velocita' vento),
+      <code>UCI</code>, <code>TCM</code>, <code>TCL</code>,
+      <code>TCH</code>, <code>UCH</code>, <code>UCL</code>,
+      <code>VAI</code>, <code>VAH</code>, <code>VAL</code>,
+      <code>TCG</code>, <code>UCG</code>, <code>PCG</code>,
+      <code>DVG</code>, <code>VAG</code>, <code>DVH</code>,
+      <code>VAD</code>, <code>DVV</code>, <code>LIH</code>,
+      <code>LIL</code> (questi ultimi con volumi/copertura stazioni molto
+      minori — probabili varianti statistiche istantaneo/media/min/max,
+      non ancora confermato). Elenco completo con conteggio righe e
+      stazioni per codice in
+      <code>docs/misure_cae_old.csv</code>.</li>
     <li><code>inizio</code> / <code>fine</code>: intervallo di data/ora in
       formato ISO&nbsp;8601 (es. <code>2024-01-01T00:00</code>).</li>
     <li><code>cod_staz</code>: facoltativo. Se assente restituisce tutte le

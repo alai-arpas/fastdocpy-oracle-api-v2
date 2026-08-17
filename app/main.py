@@ -121,11 +121,16 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     ) -> list[MisuraCae]:
         """Misure di validazione CAE per grandezza e intervallo di date.
 
-        `cod_grand`: P1H = pioggia, TCI = temperatura, LIT/LJT = livello
-        primo/secondo idrometro. `inizio`/`fine` sono datetime ISO 8601
-        (es. `2022-11-15T03:00:00`); a differenza del legacy non serve piu'
-        il formato `dd-mm-yyyy hh24:mi`, la conversione la fa FastAPI.
-        `cod_staz` e' opzionale: se assente restituisce tutte le stazioni.
+        `cod_grand`: PCT = pioggia, TCI = temperatura, LIT/LJT = livello
+        primo/secondo idrometro (27 codici confermati sui dati reali, vedi
+        `docs/misure_cae_old.csv` per l'elenco completo con conteggio righe
+        e stazioni per codice — il legacy citava "P1H" per la pioggia, ma
+        non compare tra i codici realmente presenti: era sbagliato o
+        relativo a un'altra tabella). `inizio`/`fine` sono datetime ISO
+        8601 (es. `2022-11-15T03:00:00`); a differenza del legacy non
+        serve piu' il formato `dd-mm-yyyy hh24:mi`, la conversione la fa
+        FastAPI. `cod_staz` e' opzionale: se assente restituisce tutte le
+        stazioni.
 
         Legge da MISURE_CAE_OLD (non MISURE_CAE): scope temporaneo, vedi
         `docs/refactor-decisions.md` sezione 7.
