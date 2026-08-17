@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from app.main import create_app, get_connection
+from app.main import create_app, get_adb_connection, get_connection
 from tests.oracle_fakes import FakeConnection
 
 
@@ -9,6 +9,17 @@ def _client_with_fake_connection(rows: list[tuple]) -> TestClient:
     fake_connection = FakeConnection(rows)
     app.dependency_overrides[get_connection] = lambda: fake_connection
     return TestClient(app)
+
+
+def _client_with_fake_connections(
+    source_rows: list[tuple], adb_rows: list[tuple]
+) -> tuple[TestClient, FakeConnection, FakeConnection]:
+    app = create_app()
+    source_connection = FakeConnection(source_rows)
+    adb_connection = FakeConnection(adb_rows)
+    app.dependency_overrides[get_connection] = lambda: source_connection
+    app.dependency_overrides[get_adb_connection] = lambda: adb_connection
+    return TestClient(app), source_connection, adb_connection
 
 
 def test_sasi_route_returns_stazioni_from_repository() -> None:
@@ -59,3 +70,36 @@ def test_misure_cae_route_returns_misure_from_repository() -> None:
             "data": "2022-11-15T03:00:00",
         }
     ]
+
+
+def test_adb_misure_cae_sample_route_returns_rows_from_adb() -> None:
+    client, _source, _adb = _client_with_fake_connections(
+        source_rows=[], adb_rows=[("101", "P1H", 12.3, "1")]
+    )
+
+    response = client.get("/adb/misure_cae")
+
+    assert response.status_code == 200
+    assert response.json() == [["101", "P1H", 12.3, "1"]]
+
+
+def test_adb_misure_cae_sync_route_copies_source_rows_to_adb() -> None:
+    rows = [("101", "P1H", "2022-11-15", 1.0, "1", "A", 3, 0)]
+    client, _source, adb = _client_with_fake_connections(source_rows=rows, adb_rows=[])
+
+    response = client.post("/adb/misure_cae/sync")
+
+    assert response.status_code == 200
+    assert response.json() == {"inseriti": 1}
+    assert adb.committed is True
+
+
+def test_adb_idrometri_report_sync_route_copies_source_rows_to_adb() -> None:
+    rows = [("op", "nome", "cod1", "LIT", "2022-11-15", 0, 1, 0, 0.5, 0.4, "S", "ok")]
+    client, _source, adb = _client_with_fake_connections(source_rows=rows, adb_rows=[])
+
+    response = client.post("/adb/idrometri_report/sync")
+
+    assert response.status_code == 200
+    assert response.json() == {"inseriti": 1}
+    assert adb.committed is True

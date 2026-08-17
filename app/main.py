@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from app.db import oracle_connection
 from app.models import MisuraCae, Stazione, Trascodifica
+from app.repositories import adb_sync as adb_sync_repo
 from app.repositories import misure_cae as misure_cae_repo
 from app.repositories import stazioni as stazioni_repo
 from app.repositories import trascodifiche as trascodifiche_repo
@@ -26,15 +27,32 @@ class HealthResponse(BaseModel):
     service: str
 
 
+class SyncResult(BaseModel):
+    inseriti: int
+
+
 def get_connection(request: Request) -> Iterator[oracledb.Connection]:
-    """Connessione Oracle per la durata della richiesta."""
+    """Connessione Oracle al database sorgente ARPAS per la durata della richiesta."""
 
     settings: AppSettings = request.app.state.settings
-    with oracle_connection(settings.oracle) as connection:
+    with oracle_connection(
+        dsn=settings.oracle.dsn, credentials=settings.oracle.credentials
+    ) as connection:
+        yield connection
+
+
+def get_adb_connection(request: Request) -> Iterator[oracledb.Connection]:
+    """Connessione Oracle al database di destinazione ADB per la richiesta."""
+
+    settings: AppSettings = request.app.state.settings
+    with oracle_connection(
+        dsn=settings.adb.dsn, credentials=settings.adb.credentials
+    ) as connection:
         yield connection
 
 
 OracleConnection = Annotated[oracledb.Connection, Depends(get_connection)]
+AdbConnection = Annotated[oracledb.Connection, Depends(get_adb_connection)]
 
 
 def create_app(settings: AppSettings | None = None) -> FastAPI:
@@ -93,6 +111,34 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return misure_cae_repo.fetch_misure_cae(
             connection, cod_grand=cod_grand, inizio=inizio, fine=fine
         )
+
+    @application.get("/adb/misure_cae", tags=["adb"])
+    def adb_misure_cae_sample(
+        connection: AdbConnection, limite: int = 8
+    ) -> list[tuple]:
+        """Anteprima di poche righe gia' presenti su ADB, per verifica manuale
+        (non un elenco completo della tabella).
+        """
+
+        return adb_sync_repo.fetch_misure_cae_adb_sample(connection, quante=limite)
+
+    @application.post("/adb/misure_cae/sync", response_model=SyncResult, tags=["adb"])
+    def adb_misure_cae_sync(source: OracleConnection, adb: AdbConnection) -> SyncResult:
+        """Copia l'intera MISURE_CAE dal database sorgente ad ADB (WKSP_DBPOA)."""
+
+        inseriti = adb_sync_repo.sync_misure_cae(source, adb)
+        return SyncResult(inseriti=inseriti)
+
+    @application.post(
+        "/adb/idrometri_report/sync", response_model=SyncResult, tags=["adb"]
+    )
+    def adb_idrometri_report_sync(
+        source: OracleConnection, adb: AdbConnection
+    ) -> SyncResult:
+        """Copia l'intera IDROMETRI_REPORT dal database sorgente ad ADB (WKSP_DBPOA)."""
+
+        inseriti = adb_sync_repo.sync_idrometri_report(source, adb)
+        return SyncResult(inseriti=inseriti)
 
     return application
 

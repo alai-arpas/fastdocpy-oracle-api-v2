@@ -30,7 +30,9 @@ uv run poe docker-down
 ## Configurazione e segreti
 
 Valori non sensibili in `.env` (vedi `.env.example`): `FDP_ORACLE__HOST`,
-`FDP_ORACLE__PORT`, `FDP_ORACLE__SERVICE_NAME`.
+`FDP_ORACLE__PORT`, `FDP_ORACLE__SERVICE_NAME`, `FDP_ADB__DSN` (database di
+destinazione per la sincronizzazione, DSN gia' pronta come nel legacy — non
+componenti host/porta/service separati).
 
 Credenziali in file singoli sotto `.secrets/` (esclusi da git e dal build
 context Docker, mai in chiaro nelle env var):
@@ -38,6 +40,8 @@ context Docker, mai in chiaro nelle env var):
 ```text
 .secrets/FDP_ORACLE__CREDENTIALS__USER
 .secrets/FDP_ORACLE__CREDENTIALS__PASSWORD
+.secrets/FDP_ADB__CREDENTIALS__USER
+.secrets/FDP_ADB__CREDENTIALS__PASSWORD
 ```
 
 Caricamento tipizzato in `app/settings.py` via `pydantic-settings`
@@ -61,25 +65,50 @@ Caricamento tipizzato in `app/settings.py` via `pydantic-settings`
       con bind variables al posto delle f-string interpolate nel legacy
       (era SQL injection: `cod_grand`/`inizio`/`fine` finivano diretti nel
       testo della query)
+- [x] Porting del modulo ADB (`app/repositories/adb_sync.py`, mai attivato
+      in produzione nel legacy: le route erano commentate). Connessione
+      distinta al database di destinazione (`AppSettings.adb`, dependency
+      `get_adb_connection`) per sincronizzare MISURE_CAE e IDROMETRI_REPORT
+      verso lo schema WKSP_DBPOA:
+      - `GET /adb/misure_cae`: anteprima di poche righe già presenti su ADB
+        (non un elenco completo), equivalente al legacy `/adb_prima`
+      - `POST /adb/misure_cae/sync`, `POST /adb/idrometri_report/sync`:
+        copiano l'intera tabella sorgente su ADB — erano `GET` nel legacy
+        (`/adb_insert`, `/adb_insert_idro_report`), portate a `POST` perché
+        mutano dati
+      - lettura sorgente a blocchi (`iter_chunks`/`fetchmany`) invece di
+        `cursor.fetchall()` + un unico `executemany`: risolve per questo
+        percorso il rischio di saturare la memoria già segnalato più sotto
+        per `IDROMETRI_REPORT`
+      - `SELECT` con colonne esplicite invece di `SELECT *`: il legacy si
+        affidava all'ordine fisico delle colonne per farle combaciare con
+        l'insert posizionale a destinazione — fragile e silenzioso in caso
+        di mismatch; ora usa gli stessi nomi già dichiarati dal legacy lato
+        insert, così un disallineamento di schema fallisce in modo esplicito
 - [ ] Porting delle route legacy rimanenti: validazioni idrometriche più
-      ampie (`IDROMETRI_REPORT`), export CSV. Le route `/dati_week*`,
-      `/pti`, `/tipo/{tipo}/{anno}/{stazione}`, `/bis/{numero}` nel legacy
-      sembrano codice di prova/debug (query contro tabelle non
-      documentate, scrittura di file locali) più che funzionalità da
-      preservare: da confermare con l'utente prima di migrarle o scartarle
+      ampie esposte via HTTP (oltre alla sync ADB, sopra), export CSV. Le
+      route `/dati_week*`, `/pti`, `/tipo/{tipo}/{anno}/{stazione}`,
+      `/bis/{numero}` nel legacy sembrano codice di prova/debug (query
+      contro tabelle non documentate, scrittura di file locali) più che
+      funzionalità da preservare: da confermare con l'utente prima di
+      migrarle o scartarle
 - [ ] `field_validator`/`model_validator` Pydantic per le regole di
       validazione dati (range plausibili, coerenza tra campi, flag di
       scarto) — i modelli attuali sono solo tipizzazione della forma dei
       dati, non ancora regole di business
-- [ ] Fetch a blocchi/streaming per le tabelle molto grandi: le repository
-      attuali iterano il cursore (rispettando `arraysize`) invece di usare
-      `cursor.fetchall()` come il legacy, ma materializzano comunque
+- [ ] Fetch a blocchi/streaming per le risposte HTTP di lettura su tabelle
+      molto grandi: le repository di lettura (`stazioni`, `trascodifiche`,
+      `misure_cae`) iterano il cursore (rispettando `arraysize`) invece di
+      usare `cursor.fetchall()` come il legacy, ma materializzano comunque
       l'intera lista in memoria prima di serializzarla in JSON — per
-      `IDROMETRI_REPORT` e simili serve ancora paginazione o una risposta
-      in streaming vera e propria
-- [ ] Verifica che `oracledb` thin mode si connetta correttamente al DB
-      Oracle ARPAS reale (nessun Instant Client nel Dockerfile v2: da
-      confermare prima di considerarlo definitivo)
+      `IDROMETRI_REPORT` esposto via HTTP (se servirà) serve ancora
+      paginazione o una risposta in streaming vera e propria (la sync ADB
+      sopra risolve solo il percorso lettura-sorgente/scrittura-ADB, non
+      un'eventuale lettura HTTP diretta di IDROMETRI_REPORT)
+- [ ] Verifica che `oracledb` thin mode si connetta correttamente ai DB
+      Oracle ARPAS/ADB reali (nessun Instant Client nel Dockerfile v2, e
+      nessuna gestione di Oracle Wallet per ADB: da confermare se serve
+      prima di considerarlo definitivo)
 
 ## Convenzioni
 

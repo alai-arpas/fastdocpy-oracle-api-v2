@@ -10,12 +10,15 @@ Le immagini Docker e la struttura di configurazione ricalcano quelle di
 
 ## Stato
 
-`/`, `/health`, `/sasi`, `/sar`, `/trascodifica` e `/misure_cae/{cod_grand}`
-portati da fastdocpy-oracle-api, con modelli Pydantic tipizzati e query con
-bind variables (il legacy interpolava i parametri della request nel testo
-SQL). Restano da migrare: validazioni idrometriche aggiuntive, export CSV, e
-il fetch a blocchi/streaming per le tabelle molto grandi (oggi le query
-restituiscono comunque l'intero result set in un'unica risposta JSON).
+`/`, `/health`, `/sasi`, `/sar`, `/trascodifica`, `/misure_cae/{cod_grand}`
+e il modulo di sincronizzazione ADB (`/adb/misure_cae`,
+`/adb/misure_cae/sync`, `/adb/idrometri_report/sync`) portati da
+fastdocpy-oracle-api, con modelli Pydantic tipizzati e query con bind
+variables (il legacy interpolava i parametri della request nel testo SQL).
+Restano da migrare: validazioni idrometriche aggiuntive esposte via HTTP,
+export CSV, e il fetch a blocchi/streaming per le risposte JSON su tabelle
+molto grandi (oggi le route di lettura restituiscono comunque l'intero
+result set in un'unica risposta). Dettagli in `docs/CLAUDE.md`.
 
 ## Avvio
 

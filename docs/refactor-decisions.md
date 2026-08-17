@@ -152,3 +152,58 @@ tratti da codice di prova (tabelle come `GIS_PROVA_1_WEEK`, scrittura di
 CSV su filesystem locale, endpoint numerati senza logica di dominio chiara)
 più che funzionalità di prodotto — da confermare con l'utente se vadano
 migrate o scartate prima di procedere oltre.
+
+## 6. Porting del modulo ADB (sincronizzazione verso WKSP_DBPOA)
+
+Il legacy conteneva un secondo modulo, `app/adb/` (`conn_env.py`,
+`query.py`), per copiare dati dal database Oracle sorgente ARPAS a un
+secondo database Oracle di destinazione ("ADB"), schema `WKSP_DBPOA`:
+`MISURE_CAE` e `IDROMETRI_REPORT` lette per intero dalla sorgente e
+inserite nel target. **Codice mai attivato in produzione**: sia le tre
+route in `main.py` (`/adb_prima`, `/adb_insert`, `/adb_insert_idro_report`)
+sia l'intero contenuto di `app/adb/conn_env.py` e `app/adb/query.py` erano
+racchiusi in una docstring/commento, quindi disattivi. Portato su richiesta
+esplicita dell'utente, con tre correzioni deliberate rispetto
+all'originale:
+
+- **Connessione via DSN grezza, non host/porta/service_name**: il legacy
+  passava a `oracledb.connect()` una DSN già pronta
+  (`SASSAPI_ADB_dns`), diversamente dalla connessione sorgente che
+  componeva `host:port/service_name`. La nuova `AdbSettings` (config
+  `FDP_ADB__DSN`) mantiene la stessa forma, perché non c'è modo di sapere
+  dal codice legacy se quella DSN sia un semplice `host:port/service`, un
+  alias TNS, o un connect descriptor Easy Connect Plus con opzioni
+  aggiuntive — comporla da componenti separate avrebbe richiesto
+  un'assunzione non verificabile. Nessuna gestione di Oracle Wallet è stata
+  aggiunta: il legacy non ne aveva, quindi non ne aggiungiamo senza
+  conferma che serva davvero (se ADB risultasse essere un Autonomous
+  Database Oracle Cloud con mTLS obbligatorio, servirebbe rivedere questo
+  punto).
+- **Lettura sorgente a blocchi invece di `fetchall()` + un unico
+  `executemany`**: stesso rischio di saturare la memoria già segnalato per
+  `IDROMETRI_REPORT` nella sezione 1, qui concreto perché è proprio una
+  delle tabelle copiate per intero, senza filtri. La nuova
+  `app.db.iter_chunks` legge con `cursor.fetchmany(ARRAY_SIZE)` a
+  ripetizione e inserisce un blocco alla volta con `executemany`,
+  mantenendo un solo commit finale (stessa semantica transazionale
+  "tutto o niente" dell'originale, ma senza mai avere l'intera tabella in
+  memoria Python contemporaneamente).
+- **SELECT con colonne esplicite invece di `SELECT *`**: il legacy leggeva
+  `SELECT * FROM MISURE_CAE`/`IDROMETRI_REPORT` e passava le tuple
+  risultanti a un insert posizionale (`:0, :1, ...`), contando sul fatto
+  che l'ordine fisico delle colonne della tabella sorgente combaciasse con
+  l'ordine dei parametri dell'insert — un accoppiamento implicito e
+  silenzioso: se lo schema cambia, i dati finiscono nella colonna sbagliata
+  senza errori. La query sorgente elenca ora esplicitamente le stesse
+  colonne già dichiarate dal legacy lato insert (`COD_STAZ, COD_GRAND,
+  DATA_MIS, VALORE, COD_VALID, PERIODO_ARC, ORA, MINUTO` per MISURE_CAE;
+  analogo per IDROMETRI_REPORT): stesso comportamento se lo schema è quello
+  atteso dal legacy, ma un mismatch di schema fa fallire la query invece di
+  corrompere silenziosamente i dati copiati.
+
+Le due route che scrivono (`/adb_insert`, `/adb_insert_idro_report`) erano
+`GET` nel legacy; portate a `POST` (`/adb/misure_cae/sync`,
+`/adb/idrometri_report/sync`) perché mutano dati sul database di
+destinazione — semantica HTTP corretta, non solo pignoleria: un `GET`
+rifetchato da un proxy/browser/crawler potrebbe altrimenti innescare
+inserimenti non voluti.

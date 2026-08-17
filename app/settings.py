@@ -37,6 +37,21 @@ class OracleSettings(BaseModel):
         return f"{self.host}:{self.port}/{self.service_name}"
 
 
+class AdbSettings(BaseModel):
+    """Connessione al database Oracle di destinazione (ADB) per la
+    sincronizzazione MISURE_CAE/IDROMETRI_REPORT verso lo schema WKSP_DBPOA.
+
+    A differenza di `OracleSettings`, il legacy passava a `oracledb.connect`
+    una DSN gia' pronta (`SASSAPI_ADB_dns`), non componenti host/porta/
+    service_name separati: manteniamo la stessa forma qui.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    dsn: str = ""
+    credentials: OracleCredentials | None = None
+
+
 class AppSettings(BaseSettings):
     """Configurazione completa e immutabile di un processo."""
 
@@ -51,6 +66,7 @@ class AppSettings(BaseSettings):
     )
 
     oracle: OracleSettings = Field(default_factory=OracleSettings)
+    adb: AdbSettings = Field(default_factory=AdbSettings)
 
     @classmethod
     def settings_customise_sources(
