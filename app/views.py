@@ -4,11 +4,14 @@ Ogni funzione qui prende i dati gia' letti da una repository e li rende in
 tabella con `app.html.render_table`, dentro la stessa shell della home page.
 """
 
+import json
 from datetime import datetime
 from html import escape
 
 from app.html import page_shell, render_table
 from app.models import MisuraCae, Trascodifica
+
+_CHART_JS_URL = "https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"
 
 
 def render_trascodifica_page(rows: list[Trascodifica]) -> str:
@@ -41,7 +44,9 @@ _MISURE_CAE_DOC = """
     <li><code>inizio</code> / <code>fine</code>: intervallo di data/ora in
       formato ISO&nbsp;8601 (es. <code>2024-01-01T00:00</code>).</li>
     <li><code>cod_staz</code>: facoltativo. Se assente restituisce tutte le
-      stazioni; se presente filtra su una sola (max 9 caratteri).</li>
+      stazioni; se presente filtra su una sola (max 9 caratteri) e mostra
+      anche un grafico valore/tempo (serve una singola stazione: con piu'
+      stazioni insieme un grafico a linee non sarebbe leggibile).</li>
   </ul>
 
   <article>
@@ -90,6 +95,71 @@ def _misure_cae_form(
     """
 
 
+def _safe_json_for_script(value: object) -> str:
+    """`json.dumps` non basta dentro un `<script>`: se il valore contiene
+    `</script>` (es. un `cod_staz` malevolo passato come query param), il
+    tokenizzatore HTML del browser chiuderebbe il tag lo stesso, a
+    prescindere dal contesto JS. Si esclude escapando `<`, `>`, `&`.
+    """
+
+    return (
+        json.dumps(value)
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
+    )
+
+
+def _misure_cae_chart(rows: list[MisuraCae], cod_staz: str, cod_grand: str) -> str:
+    labels_json = _safe_json_for_script([row.data.isoformat() for row in rows])
+    valori_json = _safe_json_for_script([row.valore for row in rows])
+    label_json = _safe_json_for_script(f"{cod_grand} — {cod_staz}")
+
+    return f"""
+    <h2>Grafico</h2>
+    <div style="height: 320px">
+      <canvas id="misure-cae-chart"></canvas>
+    </div>
+    <script src="{_CHART_JS_URL}"></script>
+    <script>
+      (function () {{
+        const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const line = dark ? "#3987e5" : "#2a78d6";
+        const ink = dark ? "#c3c2b7" : "#52514e";
+        const grid = dark ? "#2c2c2a" : "#e1e0d9";
+
+        new Chart(document.getElementById("misure-cae-chart"), {{
+          type: "line",
+          data: {{
+            labels: {labels_json},
+            datasets: [{{
+              label: {label_json},
+              data: {valori_json},
+              borderColor: line,
+              backgroundColor: line,
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.15,
+            }}],
+          }},
+          options: {{
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {{ legend: {{ display: false }} }},
+            scales: {{
+              x: {{
+                ticks: {{ color: ink, maxRotation: 0, autoSkip: true }},
+                grid: {{ color: grid }},
+              }},
+              y: {{ ticks: {{ color: ink }}, grid: {{ color: grid }} }},
+            }},
+          }},
+        }});
+      }})();
+    </script>
+    """
+
+
 def render_misure_cae_page(
     rows: list[MisuraCae] | None,
     *,
@@ -106,6 +176,14 @@ def render_misure_cae_page(
     parts = [_MISURE_CAE_DOC, _misure_cae_form(cod_grand, inizio, fine, cod_staz)]
 
     if rows is not None:
+        if rows and cod_staz and cod_grand:
+            parts.append(_misure_cae_chart(rows, cod_staz, cod_grand))
+        elif rows and not cod_staz:
+            parts.append(
+                "<p>Seleziona anche una stazione per vedere il grafico "
+                "(con piu' stazioni insieme non sarebbe leggibile).</p>"
+            )
+
         if rows:
             headers = ["Stazione", "Grandezza", "Valore", "Validazione", "Data"]
             table_rows = [
