@@ -32,7 +32,7 @@ class OracleSettings(BaseModel):
 
     @property
     def dsn(self) -> str:
-        """Connect descriptor per python-oracledb in thin mode (nessun Instant Client)."""
+        """Connect descriptor per python-oracledb in thin mode (no Instant Client)."""
 
         return f"{self.host}:{self.port}/{self.service_name}"
 
@@ -61,7 +61,7 @@ class AppSettings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        """Supporta nomi di secret Docker annidati come FDP_ORACLE__CREDENTIALS__USER."""
+        """Supporta secret Docker annidati come FDP_ORACLE__CREDENTIALS__USER."""
 
         del settings_cls
         nested_secrets = NestedSecretsSettingsSource(

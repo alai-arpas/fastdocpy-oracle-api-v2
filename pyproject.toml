@@ -35,7 +35,7 @@ select = ["E", "F", "I", "UP"]
 
 [tool.poe.tasks]
 dev = { cmd = "fastapi dev app/main.py", help = "Avvia l'API in sviluppo" }
-start = { cmd = "uvicorn app.main:app --host 127.0.0.1 --port 5008 --no-access-log", help = "Avvia l'API locale" }
+start = { cmd = "uvicorn app.main:app --host 127.0.0.1 --port 5007 --no-access-log", help = "Avvia l'API locale" }
 test = { cmd = "pytest", help = "Esegue i test" }
 lint = { cmd = "ruff check .", help = "Controlla il codice" }
 format = { cmd = "ruff format .", help = "Formatta il codice" }

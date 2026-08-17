@@ -120,3 +120,35 @@ Per lo sviluppo dentro WSL sono supportati sia Claude Code CLI (installato
 direttamente dentro la distro, non su Windows) sia l'estensione VS Code
 tramite "Remote - WSL", oltre all'app desktop Claude Code con supporto
 dedicato a sessioni WSL2.
+
+## 5. Prima ondata di porting: SASI/SAR, trascodifiche, misure CAE
+
+Portate `/sasi`, `/sar`, `/trascodifica` e `/misure_cae/{cod_grand}`, con
+tre scelte deliberate rispetto al comportamento legacy:
+
+- **Bind variables sempre**, mai SQL costruito con f-string sui parametri
+  della request. Il legacy interpolava direttamente `cod_grand`, `inizio` e
+  `fine` nel testo della query (`query_idro_valida.py`): SQL injection
+  concreta, dato che questi valori arrivano dalla request HTTP. `oracledb`
+  supporta i bind sia per stringhe che per `datetime` Python legati a
+  colonne DATE/TIMESTAMP.
+- **Date come `datetime` ISO 8601 nei query param**, non più stringhe nel
+  formato `dd-mm-yyyy hh24:mi` da interpretare con `to_date()` lato SQL.
+  FastAPI valida/converte da solo; è una modifica di contratto verso i
+  consumer di `/misure_cae/{cod_grand}` (che dovranno passare es.
+  `2022-11-15T03:00:00` invece di `15-11-2022 03:00`), accettata perché
+  siamo comunque in un servizio v2 con URL/contratto non ancora esposto a
+  consumer esterni.
+- **Non ancora streaming/paginazione**: le repository iterano il cursore
+  (rispettando `arraysize`) invece di `cursor.fetchall()`, il che evita un
+  doppio round-trip in memoria lato driver, ma il risultato viene comunque
+  accumulato in una lista Python prima di essere serializzato in JSON.
+  Per tabelle molto grandi (`IDROMETRI_REPORT`) resta da fare un vero
+  streaming o paginazione: rimane un punto aperto in `docs/CLAUDE.md`.
+
+Non ancora portate: `/dati_week`, `/dati_week_campi`, `/pti`,
+`/tipo/{tipo}/{anno}/{stazione}`, `/bis/{numero}`. Nel legacy hanno tutti
+tratti da codice di prova (tabelle come `GIS_PROVA_1_WEEK`, scrittura di
+CSV su filesystem locale, endpoint numerati senza logica di dominio chiara)
+più che funzionalità di prodotto — da confermare con l'utente se vadano
+migrate o scartate prima di procedere oltre.

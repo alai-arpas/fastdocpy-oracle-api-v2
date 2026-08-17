@@ -48,17 +48,35 @@ Caricamento tipizzato in `app/settings.py` via `pydantic-settings`
 ## Stato del refactoring
 
 - [x] Scheletro Docker/Compose/config: `Dockerfile`, `compose.yaml`,
-      `compose.dev.yaml`, `compose.secrets.yaml`, `app/settings.py`,
-      `app/main.py` minimale con solo `/` e `/health`
-- [ ] Porting delle route legacy: misure CAE (`/misure_cae/{cod_grand}`),
-      stazioni SASI/SAR (`/sasi`, `/sar`), validazioni idrometriche,
-      trascodifiche CAE↔ARPAS, export CSV
-- [ ] Modelli Pydantic tipizzati per le risposte (sostituendo i dict
-      costruiti a mano con `zip(campi, valori)` nel legacy) — valutare
-      `field_validator`/`model_validator` per le regole di validazione dati
-- [ ] Fetch a blocchi/streaming invece di `cursor.fetchall()` senza limiti:
-      nel legacy alcune query (es. su `IDROMETRI_REPORT`) non hanno alcun
-      filtro/limite e su tabelle grandi rischiano di saturare la memoria
+      `compose.dev.yaml`, `compose.secrets.yaml`, `app/settings.py`
+- [x] `app/db.py`: connessione Oracle per richiesta (dependency FastAPI
+      `get_connection`, nessun pool, come nel legacy) via context manager
+      `oracle_connection`
+- [x] Modelli Pydantic tipizzati per le risposte in `app/models.py`
+      (`Stazione`, `Trascodifica`, `MisuraCae`), sostituendo i dict
+      costruiti a mano con `zip(campi, valori)` nel legacy
+- [x] Porting di `/sasi`, `/sar` (`app/repositories/stazioni.py`),
+      `/trascodifica` (`app/repositories/trascodifiche.py`) e
+      `/misure_cae/{cod_grand}` (`app/repositories/misure_cae.py`), tutte
+      con bind variables al posto delle f-string interpolate nel legacy
+      (era SQL injection: `cod_grand`/`inizio`/`fine` finivano diretti nel
+      testo della query)
+- [ ] Porting delle route legacy rimanenti: validazioni idrometriche più
+      ampie (`IDROMETRI_REPORT`), export CSV. Le route `/dati_week*`,
+      `/pti`, `/tipo/{tipo}/{anno}/{stazione}`, `/bis/{numero}` nel legacy
+      sembrano codice di prova/debug (query contro tabelle non
+      documentate, scrittura di file locali) più che funzionalità da
+      preservare: da confermare con l'utente prima di migrarle o scartarle
+- [ ] `field_validator`/`model_validator` Pydantic per le regole di
+      validazione dati (range plausibili, coerenza tra campi, flag di
+      scarto) — i modelli attuali sono solo tipizzazione della forma dei
+      dati, non ancora regole di business
+- [ ] Fetch a blocchi/streaming per le tabelle molto grandi: le repository
+      attuali iterano il cursore (rispettando `arraysize`) invece di usare
+      `cursor.fetchall()` come il legacy, ma materializzano comunque
+      l'intera lista in memoria prima di serializzarla in JSON — per
+      `IDROMETRI_REPORT` e simili serve ancora paginazione o una risposta
+      in streaming vera e propria
 - [ ] Verifica che `oracledb` thin mode si connetta correttamente al DB
       Oracle ARPAS reale (nessun Instant Client nel Dockerfile v2: da
       confermare prima di considerarlo definitivo)

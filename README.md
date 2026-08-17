@@ -10,20 +10,22 @@ Le immagini Docker e la struttura di configurazione ricalcano quelle di
 
 ## Stato
 
-Scheletro iniziale: solo `/` e `/health`. Le route legacy (misure, stazioni,
-validazioni CAE) vanno migrate progressivamente da fastdocpy-oracle-api,
-sostituendo `cursor.fetchall()` senza limiti con fetch a blocchi/streaming e
-introducendo modelli Pydantic tipizzati per le risposte.
+`/`, `/health`, `/sasi`, `/sar`, `/trascodifica` e `/misure_cae/{cod_grand}`
+portati da fastdocpy-oracle-api, con modelli Pydantic tipizzati e query con
+bind variables (il legacy interpolava i parametri della request nel testo
+SQL). Restano da migrare: validazioni idrometriche aggiuntive, export CSV, e
+il fetch a blocchi/streaming per le tabelle molto grandi (oggi le query
+restituiscono comunque l'intero result set in un'unica risposta JSON).
 
 ## Avvio
 
-```powershell
+```bash
 uv sync --locked
 uv run poe check
 uv run poe dev
 ```
 
-L'API locale usa <http://127.0.0.1:5008>. Swagger UI sotto **/docs**.
+L'API locale usa <http://127.0.0.1:5007>. Swagger UI sotto **/docs**.
 
 ## Configurazione e segreti
 
@@ -40,10 +42,11 @@ Non committare `.secrets/` (già in `.gitignore`/`.dockerignore`).
 
 ## Docker
 
-```powershell
+```bash
 uv run poe docker-up
 uv run poe docker-down
 ```
 
-Pubblicato solo su **127.0.0.1:5008** (fastdocpy-arcgis-api-v2 usa già 5007
-in locale: porta diversa per evitare collisioni se girano insieme).
+Pubblicato solo su **127.0.0.1:5007** — coincide con quella di
+`fastdocpy-arcgis-api-v2`: non farli girare insieme in Docker sullo stesso
+host senza cambiare una delle due porte in `compose.yaml`.
