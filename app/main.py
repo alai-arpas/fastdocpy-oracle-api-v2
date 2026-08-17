@@ -22,6 +22,7 @@ from app.repositories import misure_cae as misure_cae_repo
 from app.repositories import stazioni as stazioni_repo
 from app.repositories import trascodifiche as trascodifiche_repo
 from app.settings import AppSettings, get_settings
+from app.views import render_trascodifica_page
 
 
 class HealthResponse(BaseModel):
@@ -100,6 +101,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         """Corrispondenza stazioni CAE <-> ARPAS."""
 
         return trascodifiche_repo.fetch_trascodifiche_cae(connection)
+
+    @application.get("/html/trascodifica", response_class=HTMLResponse, tags=["html"])
+    def trascodifica_html(connection: OracleConnection) -> HTMLResponse:
+        """Vista HTML della corrispondenza stazioni CAE <-> ARPAS."""
+
+        rows = trascodifiche_repo.fetch_trascodifiche_cae(connection)
+        return HTMLResponse(render_trascodifica_page(rows))
 
     @application.get(
         "/misure_cae/{cod_grand}", response_model=list[MisuraCae], tags=["misure"]

@@ -23,6 +23,7 @@ def test_render_home_links_to_registered_get_routes_without_path_params() -> Non
     assert '<a href="/sasi">' in html
     assert '<a href="/sar">' in html
     assert '<a href="/trascodifica">' in html
+    assert '<a href="/html/trascodifica">' in html
 
 
 def test_render_home_does_not_link_routes_with_path_params_or_non_get() -> None:

@@ -10,13 +10,14 @@ from html import escape
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 
-_PICO_CSS_URL = "https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"
+from app.html import page_shell
 
 # Ordine di visualizzazione delle sezioni; i tag non elencati qui finiscono
 # in coda, in ordine alfabetico.
-_TAG_ORDER = ["system", "stazioni", "trascodifiche", "misure", "adb"]
+_TAG_ORDER = ["system", "html", "stazioni", "trascodifiche", "misure", "adb"]
 _TAG_LABELS = {
     "system": "Sistema",
+    "html": "Pagine HTML",
     "stazioni": "Stazioni",
     "trascodifiche": "Trascodifiche",
     "misure": "Misure",
@@ -82,26 +83,9 @@ def render_home(application: FastAPI) -> str:
         for tag in ordered_tags
     )
 
-    title = escape(application.title)
-    description = escape(application.description or "")
-
-    return f"""<!doctype html>
-<html lang="it">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{title}</title>
-  <link rel="stylesheet" href="{_PICO_CSS_URL}">
-</head>
-<body>
-  <main class="container">
-    <header>
-      <h1>{title}</h1>
-      <p>{description}</p>
-      <p><a href="/docs" role="button">Documentazione interattiva (Swagger UI)</a></p>
-    </header>
+    body = f"""
+    <p><a href="/docs" role="button">Documentazione interattiva (Swagger UI)</a></p>
     {sections}
-  </main>
-</body>
-</html>
-"""
+    """
+
+    return page_shell(application.title, application.description or "", body)

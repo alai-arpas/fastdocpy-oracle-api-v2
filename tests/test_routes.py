@@ -51,6 +51,17 @@ def test_trascodifica_route_returns_trascodifiche_from_repository() -> None:
     ]
 
 
+def test_trascodifica_html_route_returns_html_page() -> None:
+    client = _client_with_fake_connection([("Stazione Uno", "CAE01", "ARPA01")])
+
+    response = client.get("/html/trascodifica")
+
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "Stazione Uno" in response.text
+    assert "CAE01" in response.text
+
+
 def test_misure_cae_route_returns_misure_from_repository() -> None:
     riga = ("101", "P1H", 12.3, "1", "2022-11-15T03:00:00")
     client = _client_with_fake_connection([riga])
