@@ -29,3 +29,4 @@ def test_fetch_misure_cae_binds_params_and_maps_rows() -> None:
         "inizio": inizio,
         "fine": fine,
     }
+    assert "misure_cae_old" in connection.fake_cursor.last_sql.lower()

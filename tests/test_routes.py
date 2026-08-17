@@ -1,5 +1,9 @@
+from contextlib import contextmanager
+from datetime import datetime
+
 from fastapi.testclient import TestClient
 
+import app.main as main_module
 from app.main import create_app, get_adb_connection, get_connection
 from tests.oracle_fakes import FakeConnection
 
@@ -81,6 +85,54 @@ def test_misure_cae_route_returns_misure_from_repository() -> None:
             "data": "2022-11-15T03:00:00",
         }
     ]
+
+
+def test_misure_cae_html_route_without_params_does_not_open_connection(
+    monkeypatch,
+) -> None:
+    def _fail(**kwargs):
+        raise AssertionError("oracle_connection non doveva essere chiamato")
+
+    monkeypatch.setattr(main_module, "oracle_connection", _fail)
+    client = TestClient(create_app())
+
+    response = client.get("/html/misure_cae")
+
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert 'action="/html/misure_cae"' in response.text
+
+
+def test_misure_cae_html_route_with_params_queries_and_renders_table(
+    monkeypatch,
+) -> None:
+    riga = ("101", "PCT", 1.5, "1", "2024-01-01T03:00:00")
+    fake_connection = FakeConnection([riga])
+
+    @contextmanager
+    def _fake_oracle_connection(**kwargs):
+        yield fake_connection
+
+    monkeypatch.setattr(main_module, "oracle_connection", _fake_oracle_connection)
+    client = TestClient(create_app())
+
+    response = client.get(
+        "/html/misure_cae",
+        params={
+            "cod_grand": "PCT",
+            "inizio": "2024-01-01T00:00:00",
+            "fine": "2024-01-02T00:00:00",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "Risultati (1)" in response.text
+    assert "101" in response.text
+    assert fake_connection.fake_cursor.last_binds == {
+        "cod_grand": "PCT",
+        "inizio": datetime(2024, 1, 1),
+        "fine": datetime(2024, 1, 2),
+    }
 
 
 def test_adb_misure_cae_sample_route_returns_rows_from_adb() -> None:

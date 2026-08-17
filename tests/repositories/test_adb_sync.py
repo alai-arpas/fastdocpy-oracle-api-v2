@@ -21,6 +21,8 @@ def test_sync_misure_cae_copies_all_rows_and_commits() -> None:
     assert inseriti == 5
     assert adb.fake_cursor.executemany_rows == rows
     assert adb.committed is True
+    assert "misure_cae_old" in source.fake_cursor.last_sql.lower()
+    assert "wksp_dbpoa.misure_cae" in adb.fake_cursor.executemany_sql.lower()
 
 
 def test_sync_idrometri_report_copies_all_rows_and_commits() -> None:

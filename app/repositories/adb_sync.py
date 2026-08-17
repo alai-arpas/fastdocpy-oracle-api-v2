@@ -13,6 +13,12 @@ commentate in `main.py`). Due differenze rispetto all'originale:
   combaciare con l'insert posizionale a destinazione (fragile e silenzioso
   in caso di mismatch). Le colonne qui sono le stesse gia' dichiarate dal
   legacy lato insert.
+
+Scope temporaneo per MISURE_CAE (vedi `docs/refactor-decisions.md`,
+sezione 7): si legge da MISURE_CAE_OLD sul database sorgente ARPAS/SASSARI,
+non da MISURE_CAE (dati troppo recenti) ne' dalle tabelle annuali o dal
+database separato con schema CAE, finche' non sono chiariti sovrapposizioni
+e buchi di copertura tra le varie tabelle.
 """
 
 import oracledb
@@ -21,7 +27,7 @@ from app.db import ARRAY_SIZE, iter_chunks, new_cursor
 
 _SQL_SELECT_MISURE_CAE = """
     SELECT cod_staz, cod_grand, data_mis, valore, cod_valid, periodo_arc, ora, minuto
-    FROM misure_cae
+    FROM misure_cae_old
     ORDER BY cod_staz
 """
 
@@ -86,7 +92,7 @@ def _sync_table(
 def sync_misure_cae(
     source_connection: oracledb.Connection, adb_connection: oracledb.Connection
 ) -> int:
-    """Copia l'intera MISURE_CAE sorgente in WKSP_DBPOA.MISURE_CAE su ADB."""
+    """Copia MISURE_CAE_OLD (sorgente) in WKSP_DBPOA.MISURE_CAE su ADB."""
 
     return _sync_table(
         source_connection,

@@ -207,3 +207,41 @@ Le due route che scrivono (`/adb_insert`, `/adb_insert_idro_report`) erano
 destinazione — semantica HTTP corretta, non solo pignoleria: un `GET`
 rifetchato da un proxy/browser/crawler potrebbe altrimenti innescare
 inserimenti non voluti.
+
+## 7. MISURE_CAE non è una tabella sola: scope temporaneo su MISURE_CAE_OLD
+
+Verificando la connessione reale (sezione precedente sullo stato del
+refactoring in `docs/CLAUDE.md`), è emerso che `MISURE_CAE` sul database
+ARPAS/SASSARI è in realtà una famiglia di tabelle partizionate a mano per
+periodo — non solo la tabella `MISURE_CAE` usata finora dal codice:
+
+- `MISURE_CAE`: dati correnti, in pratica solo gli ultimi giorni (~12
+  giorni osservati il 17 agosto 2026, non i "due mesi" ipotizzati
+  inizialmente)
+- `MISURE_CAE_OLD`: dal 2022-01-01 al 2025-11-15 osservato
+- `MISURE_CAE_2017` … `MISURE_CAE_2021`: un anno ciascuna
+- `MISURE_CAE_05_20`: 2005–2020, ma con un conteggio righe troppo basso per
+  essere un duplicato pieno delle tabelle annuali che si sovrappongono
+  (66-71M righe/anno da sole contro 31M in totale su 16 anni) — probabile
+  sottoinsieme, non confermato
+- un **buco di copertura** di circa 8 mesi e mezzo tra la fine di
+  `MISURE_CAE_OLD` (2025-11-15) e l'inizio di `MISURE_CAE` (2026-08-05), non
+  ancora spiegato
+
+C'è inoltre un **secondo database Oracle**, schema `CAE` (diverso da
+`ARPAS`), con una propria `MISURE_CAE_OLD` quasi identica ma con una
+colonna in più (`COD_CP`) e altre tabelle non ancora esplorate
+(`MISURE_CAE_EXTRA`, `MISURE_CAE_MAMOIADA_PCT`) — relazione con il database
+ARPAS/SASSARI non ancora chiarita.
+
+Decisione: finché questi punti non sono chiariti, **si legge solo da
+`MISURE_CAE_OLD` sul database ARPAS/SASSARI già configurato**
+(`FDP_ORACLE__*`) — non da `MISURE_CAE`, dalle tabelle annuali, da
+`MISURE_CAE_05_20`, né dal database con schema `CAE`. Cambiato in
+`app/repositories/misure_cae.py` (`fetch_misure_cae`, usata da
+`GET /misure_cae/{cod_grand}`) e `app/repositories/adb_sync.py`
+(`sync_misure_cae`, usata da `POST /adb/misure_cae/sync`) — la tabella di
+destinazione su ADB resta `wksp_dbpoa.misure_cae`, cambia solo la sorgente.
+Questo è uno scope provvisorio: quando i punti sopra saranno chiariti, la
+logica di selezione tabella andrà rivista (verosimilmente una selezione
+per anno, sul modello di `oratabss/tabelle.py` nel legacy).

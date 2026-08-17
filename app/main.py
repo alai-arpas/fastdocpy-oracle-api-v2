@@ -22,7 +22,7 @@ from app.repositories import misure_cae as misure_cae_repo
 from app.repositories import stazioni as stazioni_repo
 from app.repositories import trascodifiche as trascodifiche_repo
 from app.settings import AppSettings, get_settings
-from app.views import render_trascodifica_page
+from app.views import render_misure_cae_page, render_trascodifica_page
 
 
 class HealthResponse(BaseModel):
@@ -124,10 +124,42 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         primo/secondo idrometro. `inizio`/`fine` sono datetime ISO 8601
         (es. `2022-11-15T03:00:00`); a differenza del legacy non serve piu'
         il formato `dd-mm-yyyy hh24:mi`, la conversione la fa FastAPI.
+
+        Legge da MISURE_CAE_OLD (non MISURE_CAE): scope temporaneo, vedi
+        `docs/refactor-decisions.md` sezione 7.
         """
 
         return misure_cae_repo.fetch_misure_cae(
             connection, cod_grand=cod_grand, inizio=inizio, fine=fine
+        )
+
+    @application.get("/html/misure_cae", response_class=HTMLResponse, tags=["html"])
+    def misure_cae_html(
+        request: Request,
+        cod_grand: str | None = None,
+        inizio: datetime | None = None,
+        fine: datetime | None = None,
+    ) -> HTMLResponse:
+        """Documentazione e form di ricerca per le misure di validazione CAE.
+
+        A differenza delle altre route HTML, i parametri sono opzionali: la
+        connessione Oracle si apre solo se sono presenti tutti e tre (niente
+        Depends qui, cosi' la sola documentazione resta consultabile anche
+        se Oracle non e' raggiungibile).
+        """
+
+        rows = None
+        if cod_grand and inizio and fine:
+            settings: AppSettings = request.app.state.settings
+            with oracle_connection(
+                dsn=settings.oracle.dsn, credentials=settings.oracle.credentials
+            ) as connection:
+                rows = misure_cae_repo.fetch_misure_cae(
+                    connection, cod_grand=cod_grand, inizio=inizio, fine=fine
+                )
+
+        return HTMLResponse(
+            render_misure_cae_page(rows, cod_grand=cod_grand, inizio=inizio, fine=fine)
         )
 
     @application.get("/adb/misure_cae", tags=["adb"])
@@ -142,7 +174,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @application.post("/adb/misure_cae/sync", response_model=SyncResult, tags=["adb"])
     def adb_misure_cae_sync(source: OracleConnection, adb: AdbConnection) -> SyncResult:
-        """Copia l'intera MISURE_CAE dal database sorgente ad ADB (WKSP_DBPOA)."""
+        """Copia MISURE_CAE_OLD dal database sorgente ad ADB (WKSP_DBPOA)."""
 
         inseriti = adb_sync_repo.sync_misure_cae(source, adb)
         return SyncResult(inseriti=inseriti)
